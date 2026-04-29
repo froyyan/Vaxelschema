@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login - Växelschema</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f6f7fb;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.box {
+  background: white;
+  padding: 25px;
+  border-radius: 10px;
+  width: 320px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+input, textarea {
+  width: 100%;
+  padding: 10px;
+  margin: 6px 0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+button {
+  width: 100%;
+  padding: 10px;
+  background: #2d6cdf;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover { background: #1f4fbf; }
+
+.forgot {
+  margin-top: 10px;
+  text-align: center;
+  color: #2d6cdf;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 360px;
+}
+
+.close {
+  float: right;
+  cursor: pointer;
+}
+
+.small-btn {
+  margin-top: 8px;
+  background: #444;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+  <h2>Logga in</h2>
+
+  <input id="username" placeholder="Användarnamn">
+  <input id="password" type="password" placeholder="Lösenord">
+
+  <button onclick="login()">Logga in</button>
+
+  <div class="forgot" onclick="openModal()">
+    Glömt lösenord?
+  </div>
+
+  <p id="msg"></p>
+</div>
+
+<!-- MODAL -->
+<div class="modal" id="modal">
+  <div class="modal-content">
+
+    <span class="close" onclick="closeModal()">✖</span>
+
+    <h3>Återställ lösenord</h3>
+
+    <input id="name" placeholder="Namn *">
+    <input id="phone" placeholder="Telefonnummer *">
+    <textarea id="info" placeholder="Beskriv problem..." rows="3"></textarea>
+
+    <button onclick="sendMail()">📧 Skicka via Mail</button>
+    <button class="small-btn" onclick="sendSMS()">📲 Skicka via SMS</button>
+
+  </div>
+</div>
+
+<script>
+
+async function login() {
+  const res = await fetch('/login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      username: username.value,
+      password: password.value
+    })
+  });
+
+  if (res.ok) {
+    const data = await res.json();
+    window.location.href = data.role === "admin" ? "admin.html" : "index.html";
+  } else {
+    msg.innerText = "Fel användarnamn eller lösenord";
+  }
+}
+
+/* ===== MODAL ===== */
+function openModal() {
+  modal.style.display = "flex";
+}
+
+function closeModal() {
+  modal.style.display = "none";
+}
+
+/* ===== EMAIL ===== */
+function sendMail() {
+
+  if (!name.value || !phone.value) {
+    alert("Namn och telefon krävs");
+    return;
+  }
+
+  const subject = encodeURIComponent("Reset lösenord");
+  const body = encodeURIComponent(
+`Namn: ${name.value}
+Telefon: ${phone.value}
+Info: ${info.value}`
+  );
+
+  window.location.href =
+    `mailto:joakim@nettotaxi.com?subject=${subject}&body=${body}`;
+
+  closeModal();
+}
+
+/* ===== SMS VIA JOIN ===== */
+async function sendSMS() {
+
+  if (!name.value || !phone.value) {
+    alert("Namn och telefon krävs");
+    return;
+  }
+
+  const message =
+`RESET REQUEST
+Namn: ${name.value}
+Telefon: ${phone.value}
+Info: ${info.value}`;
+
+  // 🔥 BYT DENNA TILL DIN JOIN DEVICE ID
+  const deviceId = "DIN_DEVICE_ID";
+
+  const url =
+`https://joinjoaomgcd.appspot.com/_ah/api/messaging/v1/sendPush?deviceId=${deviceId}&text=${encodeURIComponent(message)}`;
+
+  await fetch(url);
+
+  alert("SMS skickat till support");
+  closeModal();
+}
+
+</script>
+
+</body>
+</html>

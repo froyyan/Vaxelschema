@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Redigera användare</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f6f7fb;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      max-width: 500px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin: 6px 0;
+    }
+
+    button {
+      padding: 10px;
+      width: 100%;
+      margin-top: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .save { background: #2d6cdf; color: white; }
+    .delete { background: #d9534f; color: white; }
+    .back { background: #444; color: white; }
+  </style>
+</head>
+
+<body>
+
+<h2>Redigera användare</h2>
+
+<div class="card">
+
+  <label>Namn</label>
+  <input id="username" disabled>
+
+  <label>Lösenord</label>
+  <input id="password" type="text">
+
+  <label>Telefonnummer</label>
+  <input id="phone">
+
+  <label>Adress</label>
+  <input id="address">
+
+  <label>Roll</label>
+  <select id="role">
+    <option value="driver">Förare</option>
+    <option value="admin">Admin</option>
+  </select>
+
+  <button class="save" onclick="saveUser()">Spara</button>
+  <button class="delete" onclick="deleteUser()">Radera användare</button>
+  <button class="back" onclick="goBack()">Stäng</button>
+
+</div>
+
+<script>
+
+function getUsername() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("username");
+}
+
+// =======================
+// LOAD USER
+// =======================
+async function loadUser() {
+  const username = getUsername();
+
+  if (!username) {
+    alert("Ingen användare vald (saknar ?username=)");
+    return;
+  }
+
+  try {
+    const res = await fetch(`/users/${username}`);
+    const user = await res.json();
+
+    if (!user) {
+      alert("Användare hittades inte");
+      return;
+    }
+
+    document.getElementById("username").value = user.username || "";
+    document.getElementById("password").value = user.password || "";
+    document.getElementById("role").value = user.role || "driver";
+    document.getElementById("phone").value = user.phone || "";
+    document.getElementById("address").value = user.address || "";
+
+  } catch (err) {
+    alert("Kunde inte ladda användare");
+    console.error(err);
+  }
+}
+
+// =======================
+// SAVE USER
+// =======================
+async function saveUser() {
+  const username = document.getElementById("username").value;
+
+  const updated = {
+    password: document.getElementById("password").value,
+    role: document.getElementById("role").value,
+    phone: document.getElementById("phone").value,
+    address: document.getElementById("address").value
+  };
+
+  const res = await fetch(`/users/${username}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updated)
+  });
+
+  if (res.ok) {
+    alert("Sparat!");
+  } else {
+    alert("Fel vid sparning");
+  }
+}
+
+// =======================
+// DELETE USER
+// =======================
+async function deleteUser() {
+  const username = document.getElementById("username").value;
+
+  if (!confirm("Vill du verkligen radera användaren?")) return;
+
+  await fetch(`/users/${username}`, {
+    method: "DELETE"
+  });
+
+  window.location.href = "/admin.html";
+}
+
+// =======================
+// BACK
+// =======================
+function goBack() {
+  window.location.href = "/admin.html";
+}
+
+// =======================
+// INIT
+// =======================
+loadUser();
+
+</script>
+
+</body>
+</html>

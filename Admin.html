@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin - Växelschema</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+
+<body>
+
+<div class="topbar">
+  <h1>Admin</h1>
+
+  <div class="topbar-actions">
+    <button type="button" class="settings-top-btn" onclick="openDashboardSettings()">
+      ⚙ Inställningar
+    </button>
+
+    <button class="logout-btn" onclick="logout()">Logga ut</button>
+  </div>
+</div>
+<div class="admin-main">
+  <div class="admin-functions">
+
+<div class="calendar-box admin-section" data-section="open-day">
+  <h3><span class="function-icon blue">📅</span> Öppna dagvy</h3>
+  <div class="month-row">
+    <input type="date" id="dayPicker">
+    <button onclick="openDayView()">Öppna</button>
+  </div>
+</div>
+
+<div class="calendar-box admin-section" data-section="driver-month">
+  <h3><span class="function-icon cyan">👤</span> Visa chaufför – månad</h3>
+  <div class="month-row">
+    <select id="monthDriver"></select>
+    <input type="month" id="monthPicker" onchange="updateMonthLabel()">
+    <button onclick="openMonthView()">Visa</button>
+  </div>
+  <div class="month-label" id="monthLabel"></div>
+</div>
+
+<div class="calendar-box admin-section" data-section="auto-fill">
+  <h3><span class="function-icon purple">🪄</span> Auto-fyll</h3>
+  <div class="month-row">
+    <input type="date" id="autoFromDate">
+    <input type="date" id="autoToDate">
+
+    <button type="button" onclick="autoFillUnassignedShifts()">
+      Auto-fyll chaufförer
+    </button>
+
+    <button type="button" onclick="autoFillTemplates()">
+      Auto-fyll omlopp
+    </button>
+
+    <button type="button" onclick="showUnassignedInRange()">
+      Visa otilldelade
+    </button>
+  </div>
+</div>
+
+<div class="calendar-box admin-section" data-section="test-rules">
+  <h3><span class="function-icon orange">🛡️</span> Testa krav</h3>
+  <div class="month-row">
+    <input type="date" id="testFromDate">
+    <input type="date" id="testToDate">
+    <button onclick="testRules()">Testa krav</button>
+  </div>
+  <div class="hint">
+    Testar otilldelade pass i valt datumspann. Inget sparas eller ändras.
+  </div>
+</div>
+
+<div class="card admin-section" data-section="templates">
+  <h3><span class="function-icon violet">📋</span> Passmallar</h3>
+  <div class="month-row">
+    <select id="templateSelect"></select>
+    <button onclick="openEditTemplate()">Redigera pass</button>
+    <button onclick="openCreateTemplate()">Skapa pass</button>
+    <button class="delete-small-btn" onclick="deleteTemplate()">Radera pass</button>
+  </div>
+</div>
+
+<div class="card admin-section" data-section="vehicles">
+  <h3><span class="function-icon blue">🚗</span> Fordonslista</h3>
+
+  <div class="month-row">
+    <select id="vehicleQuickSelect">
+      <option value="">Välj regnr</option>
+    </select>
+
+    <button type="button" onclick="openSelectedVehicleProfile()">
+      Redigera fordon
+    </button>
+
+    <button type="button" onclick="location.href='/fordon.html'">
+  Visa alla
+</button>
+
+    <button type="button" class="vehicle-create-btn" onclick="openCreateVehicleModal()">
+      + Skapa fordon
+    </button>
+  </div>
+</div>
+
+<div class="card admin-section" data-section="users">
+  <h3><span class="function-icon green">👥</span> Användare</h3>
+  <select id="userSelect"></select>
+  <button onclick="openEditUser()">Redigera användare</button>
+  <button onclick="openModal()">Skapa ny användare</button>
+</div>
+
+  </div>
+
+<div class="admin-dashboard">
+  <h2>Dashboard</h2>
+
+  <div id="dashboardContent" class="dashboard-content">
+    <!-- Dashboard laddas här -->
+  </div>
+</div>
+
+</div>
+
+<div id="testModal" class="modal" onclick="closeTestModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Resultat – Testa krav</h3>
+    <div id="testResult"></div>
+    <button onclick="closeTestModal()">Stäng</button>
+  </div>
+</div>
+
+<!-- PASSMALL MODAL -->
+<div id="templateModal" class="modal" onclick="closeTemplateModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+
+    <h3 id="templateModalTitle">Passmall</h3>
+
+<div class="edit-section">
+  <h4>Grundinfo</h4>
+
+<div class="form-grid">
+
+  <div>
+    <label>Omlopp</label>
+    <input id="templateName" placeholder="t.ex. 8011">
+  </div>
+
+  <div>
+    <label>Fordon</label>
+    <select id="templateVehicleSelect" onchange="updateTemplateVehiclePhone()">
+      <option value="">Välj fordon</option>
+    </select>
+  </div>
+
+  <div>
+    <label>Telefonnummer</label>
+    <input id="templateVehiclePhone" readonly>
+  </div>
+
+  <div>
+    <label>Regnummer</label>
+    <input id="templateRegNumber" placeholder="ABC123">
+  </div>
+
+  <div>
+    <label>Stationerad / Ort</label>
+    <input id="templateCity" placeholder="Kalmar">
+  </div>
+
+</div>
+</div>
+
+<div class="template-days">
+  <div class="template-day-header">
+  <span>Dag</span>
+  <span></span>
+  <span>Arbetstid 1</span>
+  <span>Rast</span>
+  <span></span>
+  <span>Arbetstid 2</span>
+  <span>Rast 2</span>
+</div>
+
+  <label class="template-day-row">
+    <span>Mån</span>
+    <input type="checkbox" class="template-day-check" value="1">
+
+    <input type="text" class="template-day-time" data-day="1" placeholder="07:00-16:00">
+
+    <input type="number" class="template-day-break" data-day="1" min="0" step="5" value="0" placeholder="Rast">
+
+    <button type="button" class="small-btn" onclick="toggleTemplateTime2(1)">+ Tid 2</button>
+
+    <input type="text" class="template-day-time2" data-day="1" placeholder="21:00-06:00" style="display:none;">
+
+    <input type="number" class="template-day-break2" data-day="1" min="0" step="5" value="0" placeholder="Rast 2" style="display:none;">
+  </label>
+
+  <label class="template-day-row">
+    <span>Tis</span>
+    <input type="checkbox" class="template-day-check" value="2">
+
+    <input type="text" class="template-day-time" data-day="2" placeholder="07:00-16:00">
+
+    <input type="number" class="template-day-break" data-day="2" min="0" step="5" value="0" placeholder="Rast">
+
+    <button type="button" class="small-btn" onclick="toggleTemplateTime2(2)">+ Tid 2</button>
+
+    <input type="text" class="template-day-time2" data-day="2" placeholder="21:00-06:00" style="display:none;">
+
+    <input type="number" class="template-day-break2" data-day="2" min="0" step="5" value="0" placeholder="Rast 2" style="display:none;">
+  </label>
+
+  <label class="template-day-row">
+    <span>Ons</span>
+    <input type="checkbox" class="template-day-check" value="3">
+
+    <input type="text" class="template-day-time" data-day="3" placeholder="07:00-16:00">
+
+    <input type="number" class="template-day-break" data-day="3" min="0" step="5" value="0" placeholder="Rast">
+
+    <button type="button" class="small-btn" onclick="toggleTemplateTime2(3)">+ Tid 2</button>
+
+    <input type="text" class="template-day-time2" data-day="3" placeholder="21:00-06:00" style="display:none;">
+
+    <input type="number" class="template-day-break2" data-day="3" min="0" step="5" value="0" placeholder="Rast 2" style="display:none;">
+  </label>
+
+  <label class="template-day-row">
+    <span>Tors</span>
+    <input type="checkbox" class="template-day-check" value="4">
+
+    <input type="text" class="template-day-time" data-day="4" placeholder="07:00-16:00">
+
+    <input type="number" class="template-day-break" data-day="4" min="0" step="5" value="0" placeholder="Rast">
+
+    <button type="button" class="small-btn" onclick="toggleTemplateTime2(4)">+ Tid 2</button>
+
+    <input type="text" class="template-day-time2" data-day="4" placeholder="21:00-06:00" style="display:none;">
+
+    <input type="number" class="template-day-break2" data-day="4" min="0" step="5" value="0" placeholder="Rast 2" style="display:none;">
+  </label>
+
+  <label class="template-day-row">
+    <span>Fre</span>
+    <input type="checkbox" class="template-day-check" value="5">
+
+    <input type="text" class="template-day-time" data-day="5" placeholder="07:00-16:00">
+
+    <input type="number" class="template-day-break" data-day="5" min="0" step="5" value="0" placeholder="Rast">
+
+    <button type="button" class="small-btn" onclick="toggleTemplateTime2(5)">+ Tid 2</button>
+
+    <input type="text" class="template-day-time2" data-day="5" placeholder="21:00-06:00" style="display:none;">
+
+    <input type="number" class="template-day-break2" data-day="5" min="0" step="5" value="0" placeholder="Rast 2" style="display:none;">
+  </label>
+
+  <label class="template-day-row">
+    <span>Lör</span>
+    <input type="checkbox" class="template-day-check" value="6">
+
+    <input type="text" class="template-day-time" data-day="6" placeholder="12:00-18:00">
+
+    <input type="number" class="template-day-break" data-day="6" min="0" step="5" value="0" placeholder="Rast">
+
+    <button type="button" class="small-btn" onclick="toggleTemplateTime2(6)">+ Tid 2</button>
+
+    <input type="text" class="template-day-time2" data-day="6" placeholder="21:00-06:00" style="display:none;">
+
+    <input type="number" class="template-day-break2" data-day="6" min="0" step="5" value="0" placeholder="Rast 2" style="display:none;">
+  </label>
+
+  <label class="template-day-row">
+    <span>Sön</span>
+    <input type="checkbox" class="template-day-check" value="0">
+
+    <input type="text" class="template-day-time" data-day="0" placeholder="Tid 1">
+
+    <input type="number" class="template-day-break" data-day="0" min="0" step="5" value="0" placeholder="Rast">
+
+    <button type="button" class="small-btn" onclick="toggleTemplateTime2(0)">+ Tid 2</button>
+
+    <input type="text" class="template-day-time2" data-day="0" placeholder="21:00-06:00" style="display:none;">
+
+    <input type="number" class="template-day-break2" data-day="0" min="0" step="5" value="0" placeholder="Rast 2" style="display:none;">
+  </label>
+
+</div>
+
+<div style="margin-top: 15px;">
+  <button type="button" onclick="saveTemplate()">Spara passmall</button>
+  <button type="button" onclick="closeTemplateModal()">Stäng</button>
+</div>
+
+  </div>
+</div>
+
+<!-- EDIT USER -->
+<div id="editModal" class="modal" onclick="closeEdit()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+
+    <div class="edit-header">
+      <h3>Redigera användare</h3>
+
+      <div id="rulesUserInfo" class="user-contact-box">
+        <strong id="rulesUserName"></strong>
+        <a id="rulesUserPhone" href="#"></a>
+        <a id="rulesUserEmail" href="#"></a>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="openTab(event, 'tabGrundinfo')">Grundinfo</button>
+      <button class="tab-btn" onclick="openTab(event, 'tabRegler')">Regler & krav</button>
+      <button class="tab-btn" onclick="openTab(event, 'tabAvvikelse')">Avvikelse</button>
+      <button class="tab-btn" onclick="openTab(event, 'tabInfo')">Info</button>
+    </div>
+
+    <div id="tabGrundinfo" class="tab-content active">
+      <div class="edit-section">
+        <h4>Grundinfo</h4>
+        <input id="editUsername" placeholder="Användarnamn">
+        <input id="editPassword" placeholder="Lösenord">
+        <input id="editPhone" placeholder="Telefon">
+        <input id="editEmail" placeholder="E-post">
+        <input id="editAddress" placeholder="Adress">
+        <input id="editCity" placeholder="Ort">
+        <input id="editPersonnummer" placeholder="Personnummer">
+      </div>
+    </div>
+
+<div id="tabRegler" class="tab-content">
+  <div class="rules-row">
+
+    <!-- KOLUMN 1: SCHEMA -->
+    <div class="edit-section">
+      <h4>Schema</h4>
+
+      <div class="workdays worktime-days">
+
+        <label class="worktime-day">
+          <span>Måndag</span>
+          <input type="checkbox" class="workday" value="1" onchange="toggleWorkTimeRow(1)">
+          <div class="worktime-range" id="worktime-1">
+            <input type="time" class="worktime-from" data-day="1" value="00:00">
+            <span>till</span>
+            <input type="time" class="worktime-to" data-day="1" value="23:59">
+          </div>
+        </label>
+
+        <label class="worktime-day">
+          <span>Tisdag</span>
+          <input type="checkbox" class="workday" value="2" onchange="toggleWorkTimeRow(2)">
+          <div class="worktime-range" id="worktime-2">
+            <input type="time" class="worktime-from" data-day="2" value="00:00">
+            <span>till</span>
+            <input type="time" class="worktime-to" data-day="2" value="23:59">
+          </div>
+        </label>
+
+        <label class="worktime-day">
+          <span>Onsdag</span>
+          <input type="checkbox" class="workday" value="3" onchange="toggleWorkTimeRow(3)">
+          <div class="worktime-range" id="worktime-3">
+            <input type="time" class="worktime-from" data-day="3" value="00:00">
+            <span>till</span>
+            <input type="time" class="worktime-to" data-day="3" value="23:59">
+          </div>
+        </label>
+
+        <label class="worktime-day">
+          <span>Torsdag</span>
+          <input type="checkbox" class="workday" value="4" onchange="toggleWorkTimeRow(4)">
+          <div class="worktime-range" id="worktime-4">
+            <input type="time" class="worktime-from" data-day="4" value="00:00">
+            <span>till</span>
+            <input type="time" class="worktime-to" data-day="4" value="23:59">
+          </div>
+        </label>
+
+        <label class="worktime-day">
+          <span>Fredag</span>
+          <input type="checkbox" class="workday" value="5" onchange="toggleWorkTimeRow(5)">
+          <div class="worktime-range" id="worktime-5">
+            <input type="time" class="worktime-from" data-day="5" value="00:00">
+            <span>till</span>
+            <input type="time" class="worktime-to" data-day="5" value="23:59">
+          </div>
+        </label>
+
+        <label class="worktime-day">
+          <span>Lördag</span>
+          <input type="checkbox" class="workday" value="6" onchange="toggleWorkTimeRow(6)">
+          <div class="worktime-range" id="worktime-6">
+            <input type="time" class="worktime-from" data-day="6" value="00:00">
+            <span>till</span>
+            <input type="time" class="worktime-to" data-day="6" value="23:59">
+          </div>
+        </label>
+
+        <label class="worktime-day">
+          <span>Söndag</span>
+          <input type="checkbox" class="workday" value="0" onchange="toggleWorkTimeRow(0)">
+          <div class="worktime-range" id="worktime-0">
+            <input type="time" class="worktime-from" data-day="0" value="00:00">
+            <span>till</span>
+            <input type="time" class="worktime-to" data-day="0" value="23:59">
+          </div>
+        </label>
+
+      </div>
+
+      <div class="allowed-shifts-box">
+        <label><b>Tillåtna pass</b></label>
+        <textarea id="editAllowedShifts" placeholder="Ex: 4001, 4002, 4010"></textarea>
+        <div class="hint">
+          Lämna tomt om chauffören får köra alla pass.<br>
+          Skriv passnummer separerade med kommatecken om chauffören bara får köra vissa pass.
+        </div>
+      </div>
+    </div>
+
+    <!-- KOLUMN 2: HÅRDA KRAV -->
+    <div class="edit-section">
+      <h4>Hårda krav</h4>
+
+      <div class="rule-checks">
+        <label class="rule-check">
+          <input type="checkbox" id="ruleRest">
+          <span>Dygnsvila 11h</span>
+          <span class="info-icon" data-info="Minst 11 timmars vila mellan arbetspass">i</span>
+        </label>
+
+        <label class="rule-check">
+          <input type="checkbox" id="ruleWeeklyRest">
+          <span>Veckovila</span>
+          <span class="info-icon" data-info="Minst 36 timmars sammanhängande vila inom 7 dagar">i</span>
+        </label>
+
+        <label class="rule-check">
+          <input type="checkbox" id="ruleNoConflict">
+          <span>Ingen krock</span>
+        </label>
+
+        <label class="rule-check">
+          <input type="checkbox" id="ruleLicense">
+          <span>Rätt körkort</span>
+        </label>
+
+        <label class="rule-check">
+          <input type="checkbox" id="ruleAllowOverMaxHours" onchange="toggleOverMaxHours()">
+          <span>Får arbeta över max timmar</span>
+          <span class="info-icon" data-info="Tillåter övertid över beräknad maxgräns med angiven procent">i</span>
+        </label>
+      </div>
+
+      <div id="overMaxHoursBox" class="over-max-box">
+        <input id="ruleOverMaxHoursPercent" type="number" min="0" max="100" placeholder="%">
+        <div class="over-max-hint">Ex: 10 = 10% över. 100 = obegränsat.</div>
+      </div>
+
+      <h4>Prioriteringar</h4>
+
+      <div class="rule-checks">
+        <label class="rule-check">
+          <input type="checkbox" id="rulePreferRegularDriver">
+          <span>Ordinarie förare</span>
+          <span class="info-icon" data-info="Prioriteras för pass som finns i Tillåtna pass">i</span>
+        </label>
+
+        <label class="rule-check">
+          <input type="checkbox" id="rulePreferNearbyDriver">
+          <span>Nära ort</span>
+          <span class="info-icon" data-info="Prioriterar förare vars boendeort matchar passets ort">i</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- KOLUMN 3: AUTO-FYLL -->
+    <div class="edit-section">
+      <h4>Auto-fyll</h4>
+
+      <div class="auto-grid">
+        <div>
+          <label><b>Boendeort</b></label>
+          <div class="readonly-input" id="ruleHomeCity"></div>
+          <div class="auto-hint">Hämtas från Grundinfo</div>
+        </div>
+
+        <div>
+          <label><b>Tillåtna orter</b></label>
+          <input id="ruleCityWeight" type="text" placeholder="Ex: Kalmar, Färjestaden">
+          <div class="auto-hint">Tomt = alla orter</div>
+        </div>
+
+        <div>
+          <label><b>Arbetstid %</b></label>
+          <input id="ruleWorkloadWeight" type="number" min="0" max="100" placeholder="%">
+        </div>
+
+        <div>
+          <label><b>Max timmar</b></label>
+          <input id="editMaxHours" type="number" placeholder="timmar">
+        </div>
+      </div>
+
+      <div class="auto-hint">
+        Systemet använder lägsta gränsen av arbetstid % och max timmar.
+      </div>
+
+      <div class="rules-info-box">
+        <h4>Info om krav</h4>
+        <textarea id="ruleInfo" placeholder="Fritext om krav. Inga krav, bara anteckningar."></textarea>
+      </div>
+    </div>
+
+  </div>
+</div>
+    <div id="tabAvvikelse" class="tab-content">
+      <div class="edit-section">
+        <h4>Lägg till avvikelse</h4>
+
+        <div class="absence-form">
+          <input type="date" id="absenceFrom">
+          <input type="date" id="absenceTo">
+
+          <select id="absenceType">
+            <option value="Sjuk">Sjuk</option>
+            <option value="Semester">Semester</option>
+            <option value="Vård av barn">Vård av barn</option>
+            <option value="Föräldraledig">Föräldraledig</option>
+            <option value="Övrigt">Övrigt</option>
+          </select>
+
+<input id="absenceNote" placeholder="Kommentar">
+
+<label class="absence-block-row">
+  <span>Blockera frånvaro</span>
+  <input type="checkbox" id="absenceBlockAbsence" onchange="toggleAbsenceBlockPercent()">
+</label>
+
+<div class="hint">
+  Se mer info i avvikelse
+</div>
+
+<div id="absenceBlockPercentBox" style="display:none;">
+  <input id="absenceBlockPercent" type="number" min="0" max="100" value="0" placeholder="%">
+  <div class="hint">
+    0% = blockeras helt. Över 0% = kan väljas som sista alternativ.
+  </div>
+</div>
+
+<button onclick="addAbsence()">Lägg till avvikelse</button>
+        </div>
+      </div>
+
+      <div class="edit-section">
+        <h4>Sparade avvikelser</h4>
+        <div id="absenceList"></div>
+      </div>
+    </div>
+
+    <div id="tabInfo" class="tab-content">
+      <div class="edit-section">
+        <h4>Info</h4>
+        <textarea id="editInfo"></textarea>
+      </div>
+    </div>
+
+    <button onclick="saveUser()">Spara</button>
+    <button onclick="closeEdit()">Stäng</button>
+
+  </div>
+</div>
+
+<!-- CREATE USER -->
+<div id="userModal" class="modal" onclick="closeModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Skapa användare</h3>
+
+    <input id="newUsername" placeholder="Användarnamn">
+    <input id="newPassword" placeholder="Lösenord">
+    <input id="newPhone" placeholder="Telefon">
+    <input id="newEmail" placeholder="E-post">
+
+    <button onclick="saveNewUser()">Skapa</button>
+    <button onclick="closeModal()">Stäng</button>
+  </div>
+</div>
+<!-- OTILLDELADE PASS MODAL -->
+<div id="unassignedModal" class="modal" onclick="closeUnassignedModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+
+    <div class="unassigned-header">
+      <div>
+        <h3 id="unassignedTitle">Otilldelade pass</h3>
+        <div id="unassignedSubtitle" class="hint"></div>
+      </div>
+
+      <div class="unassigned-actions">
+        <button type="button" onclick="autoFillUnassignedFromModal()">
+          Auto-fyll chaufförer
+        </button>
+
+        <button type="button" onclick="printUnassignedShifts()">
+          Skriv ut
+        </button>
+
+        <button type="button" onclick="closeUnassignedModal()">
+          Stäng
+        </button>
+      </div>
+    </div>
+
+    <div id="unassignedResult"></div>
+
+  </div>
+</div>
+<!-- FORDON MODAL -->
+<div id="vehicleModal" class="modal" onclick="closeVehicleModal()">
+  <div class="modal-content vehicle-modal-content" onclick="event.stopPropagation()">
+
+    <div class="vehicle-modal-header">
+      <div>
+        <h3 id="vehicleModalTitle">Fordonsprofil</h3>
+        <p class="hint" id="vehicleModalSubtitle">
+          Se fordonets uppgifter, deadlines och besiktningshistorik.
+        </p>
+      </div>
+
+      <button type="button" class="vehicle-close-btn" onclick="closeVehicleModal()">
+        Stäng
+      </button>
+    </div>
+
+    <!-- FORDONSPROFIL -->
+    <div id="vehicleProfileBox" class="vehicle-panel-box">
+
+      <div class="vehicle-panel-header">
+        <h4>Fordonsprofil</h4>
+
+        <button type="button" class="vehicle-edit-profile-btn" onclick="toggleVehicleProfileEdit()">
+          Redigera fordonsprofil
+        </button>
+      </div>
+
+      <div class="vehicle-profile-grid">
+        <div>
+          <span>Regnummer</span>
+          <strong id="vehicleProfileRegNumber">-</strong>
+        </div>
+
+        <div>
+          <span>Kategori</span>
+          <strong id="vehicleProfileCategory">-</strong>
+        </div>
+
+        <div>
+          <span>Telefon</span>
+          <strong id="vehicleProfilePhone">-</strong>
+        </div>
+
+        <div>
+          <span>Info</span>
+          <strong id="vehicleProfileInfo">-</strong>
+        </div>
+      </div>
+
+      <div id="vehicleEditFormBox" class="vehicle-edit-form-box" style="display:none;">
+        <div class="vehicle-form-grid">
+          <div>
+            <label>Regnummer</label>
+            <input id="vehicleRegNumber" placeholder="ABC123">
+          </div>
+
+          <div>
+            <label>Kategori</label>
+            <input id="vehicleCategory" placeholder="Taxi, Buss, Service">
+          </div>
+
+          <div>
+            <label>Telefon</label>
+            <input id="vehiclePhone" placeholder="070-111 11 11">
+          </div>
+
+          <div>
+            <label>Info</label>
+            <input id="vehicleInfo" placeholder="Ex: Kalmar, reservbil">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BESIKTNINGAR -->
+    <div class="vehicle-panel-box">
+      <div class="vehicle-panel-header">
+        <h4>Besiktningar / kontroller</h4>
+
+        <div class="vehicle-inspection-range-row">
+          <div>
+            <label>Från</label>
+            <input type="date" id="vehicleInspectionFrom">
+          </div>
+
+          <div>
+            <label>Till</label>
+            <input type="date" id="vehicleInspectionTo">
+          </div>
+
+          <button type="button" onclick="renderVehicleProfileInspectionsFromFilter()">
+            Visa
+          </button>
+        </div>
+      </div>
+
+      <div class="vehicle-inspection-filter-row">
+        <button type="button" id="vehicleInspectionFilterAll" class="vehicle-inspection-filter-btn active" onclick="setVehicleInspectionFilter('all')">
+          Alla
+        </button>
+
+        <button type="button" id="vehicleInspectionFilterNotDone" class="vehicle-inspection-filter-btn" onclick="setVehicleInspectionFilter('notDone')">
+          Deadline
+        </button>
+
+        <button type="button" id="vehicleInspectionFilterPlanned" class="vehicle-inspection-filter-btn" onclick="setVehicleInspectionFilter('planned')">
+          Ej bokade
+        </button>
+
+        <button type="button" id="vehicleInspectionFilterBooked" class="vehicle-inspection-filter-btn" onclick="setVehicleInspectionFilter('booked')">
+          Bokade
+        </button>
+
+        <button type="button" id="vehicleInspectionFilterDone" class="vehicle-inspection-filter-btn" onclick="setVehicleInspectionFilter('done')">
+          Utförda
+        </button>
+
+        <button type="button" id="vehicleInspectionFilterCancelled" class="vehicle-inspection-filter-btn" onclick="setVehicleInspectionFilter('cancelled')">
+          Avbokade
+        </button>
+
+        <select id="vehicleInspectionTypeFilter" class="vehicle-inspection-type-filter" onchange="setVehicleInspectionTypeFilter(this.value)">
+  <option value="all">Visa alla typer</option>
+  <option value="färdskriv">Färdskrivare</option>
+  <option value="taxameter">Taxameter</option>
+  <option value="alkolås">Alkolås</option>
+  <option value="lyft">Lyftbesiktning</option>
+  <option value="service">Service</option>
+  <option value="övrigt">Övrigt</option>
+</select>
+      </div>
+
+      <div id="vehicleProfileInspections"></div>
+    </div>
+
+    <div class="vehicle-modal-footer">
+      <button type="button" onclick="saveVehicle()">
+        Spara fordon
+      </button>
+
+      <button type="button" class="vehicle-close-btn" onclick="closeVehicleModal()">
+        Stäng
+      </button>
+    </div>
+
+  </div>
+</div>
+<!-- BESIKTNING MODAL -->
+<div id="inspectionModal" class="modal" onclick="closeInspectionModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+
+    <h3>Besiktningar</h3>
+
+    <div class="edit-section">
+      <h4>Sök fordon</h4>
+
+      <div class="month-row">
+        <input id="inspectionSearchInput" placeholder="Sök regnr, kategori eller info">
+
+        <button type="button" onclick="searchInspectionVehicles()">
+          Sök
+        </button>
+      </div>
+
+      <div id="inspectionVehicleSearchResult"></div>
+    </div>
+
+    <div class="edit-section">
+      <h4>Skapa besiktning</h4>
+
+      <div class="inspection-form-grid">
+        <div>
+          <label>Regnummer</label>
+          <input id="inspectionRegNumber" readonly>
+        </div>
+
+        <div>
+          <label>Datum</label>
+          <input id="inspectionDate" type="date">
+        </div>
+
+        <div>
+          <label>Tid</label>
+          <input id="inspectionTime" type="time">
+        </div>
+
+        <div>
+          <label>Kategori</label>
+          <input id="inspectionCategory" placeholder="Besiktning, service, kontroll">
+        </div>
+
+        <div>
+          <label>Info</label>
+          <input id="inspectionInfo" placeholder="Ex: kontroll innan trafik">
+        </div>
+      </div>
+
+      <button type="button" onclick="saveInspection()">
+        Spara besiktning
+      </button>
+    </div>
+
+    <button type="button" onclick="closeInspectionModal()">
+      Stäng
+    </button>
+
+  </div>
+</div>
+
+<!-- SKAPA / ÄNDRA KONTROLL MODAL -->
+<div id="inspectionCreateModal" class="modal" onclick="closeInspectionCreateModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+
+    <h3>Skapa / ändra kontroll</h3>
+
+    <div class="edit-section">
+      <h4>Fordon</h4>
+
+      <div class="inspection-form-grid">
+        <div>
+          <label>Regnummer</label>
+          <input id="createInspectionRegNumber" readonly>
+        </div>
+
+        <div>
+          <label>Adress / info</label>
+          <input id="createInspectionAddress" placeholder="Ex: Kalmar, verkstad">
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section">
+      <h4>Kontroll</h4>
+
+      <div class="inspection-form-grid">
+
+        <div>
+          <label>Typ</label>
+          <select id="createInspectionType">
+            <option value="Lyftbesiktning">Lyftbesiktning</option>
+            <option value="Färdskrivarbesiktning">Färdskrivarbesiktning</option>
+            <option value="Taxameterbesiktning">Taxameterbesiktning</option>
+            <option value="Alkolås">Alkolås</option>
+            <option value="Service">Service</option>
+            <option value="Övrigt">Övrigt</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Chaufför</label>
+          <select id="createInspectionDriver">
+            <option value="">Ingen vald</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Utförd</label>
+          <input id="createInspectionDoneDate" type="date">
+        </div>
+
+        <div>
+          <label>Ska göras</label>
+          <input id="createInspectionDueDate" type="date">
+        </div>
+
+<div>
+  <label>Deadline</label>
+  <input id="createInspectionDeadlineDate" type="date">
+</div>
+
+        <div>
+          <label>Tid</label>
+          <input id="createInspectionTime" type="time">
+        </div>
+
+        <div>
+          <label>Status</label>
+          <select id="createInspectionStatus">
+            <option value="planned">Ej bokad</option>
+            <option value="booked">Bokad</option>
+            <option value="done">Utförd</option>
+            <option value="cancelled">Avbokad</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Kommentar</label>
+          <input id="createInspectionInfo">
+        </div>
+
+      </div>
+    </div>
+
+    <button onclick="saveInspectionFromModal()">Spara</button>
+    <button onclick="closeInspectionCreateModal()">Stäng</button>
+
+  </div>
+</div>
+
+<!-- DASHBOARD / ADMIN INSTÄLLNINGAR MODAL -->
+<div id="dashboardSettingsModal" class="modal" onclick="closeDashboardSettings()">
+  <div class="modal-content dashboard-settings-modal" onclick="event.stopPropagation()">
+
+    <h3>Inställningar</h3>
+
+    <p class="hint">
+      Anpassa vilka funktioner och dashboard-widgets som ska visas.
+    </p>
+
+    <div class="settings-grid">
+
+      <div>
+        <h4>Funktioner till vänster</h4>
+
+        <p class="settings-help-text">
+          Välj vilka funktionsboxar som ska synas på vänstersidan.
+        </p>
+
+        <div class="settings-preview-box">
+          <label><input type="checkbox" class="admin-section-toggle" data-target-section="open-day"> Visa Öppna dagvy</label>
+          <label><input type="checkbox" class="admin-section-toggle" data-target-section="driver-month"> Visa chaufför – månad</label>
+          <label><input type="checkbox" class="admin-section-toggle" data-target-section="auto-fill"> Visa Auto-fyll</label>
+          <label><input type="checkbox" class="admin-section-toggle" data-target-section="test-rules"> Visa Testa krav</label>
+          <label><input type="checkbox" class="admin-section-toggle" data-target-section="templates"> Visa Passmallar</label>
+          <label><input type="checkbox" class="admin-section-toggle" data-target-section="vehicles"> Visa Fordonslista</label>
+          <label><input type="checkbox" class="admin-section-toggle" data-target-section="users"> Visa Användare</label>
+        </div>
+      </div>
+
+<div>
+  <h4>Dashboard</h4>
+
+  <p class="settings-help-text">
+    Välj vilka widgets som ska visas och i vilken ordning.
+  </p>
+
+  <div id="dashboardWidgetSettingsList" class="settings-preview-box">
+    <!-- Dashboard widgets laddas här -->
+  </div>
+</div>
+
+    </div>
+
+    <div class="settings-actions">
+      <button type="button" onclick="saveAllAdminSettings()">Spara</button>
+      <button type="button" onclick="closeDashboardSettings()">Stäng</button>
+    </div>
+
+  </div>
+</div>
+
+<script src="utils.js"></script>
+<script src="admin-settings.js"></script>
+<script src="admin.js"></script>
+<script src="admin-dashboard.js"></script>
+
+</body>
+</html>

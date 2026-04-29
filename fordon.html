@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fordon - Växelschema</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>Fordon</h1>
+    <p class="hint">Sök fordon, se fordonsprofil och deadline-besiktningar.</p>
+  </div>
+
+  <div class="topbar-actions">
+    <button type="button" onclick="location.href='/admin.html'">
+      ← Tillbaka till Admin
+    </button>
+
+    <button class="logout-btn" onclick="logout()">
+      Logga ut
+    </button>
+  </div>
+</div>
+
+<div class="vehicles-page-layout">
+
+  <!-- VÄNSTER: FORDONSLISTA -->
+  <div class="vehicles-sidebar">
+    <h3>Fordon</h3>
+
+    <input
+      id="vehiclesSearchInput"
+      placeholder="Sök regnr, kategori eller info..."
+      oninput="renderVehiclesSidebar()"
+    >
+
+    <button type="button" class="vehicle-create-btn" onclick="openCreateVehicleFromPage()">
+      + Lägg till fordon
+    </button>
+
+    <div id="vehiclesSidebarList"></div>
+  </div>
+
+  <!-- HÖGER: PROFIL -->
+  <div class="vehicles-main">
+
+<div class="fordon-right">
+  <h2>Välj ett fordon</h2>
+      <p>Välj ett fordon i listan till vänster för att se profil, kontroller och deadlines.</p>
+    </div>
+
+    <div id="vehiclePageProfile" style="display:none;">
+
+
+<div class="vehicle-page-tabs">
+  <button type="button" class="vehicle-page-tab active" onclick="showVehiclePageTab('info')">
+    Grundinfo
+  </button>
+
+  <button type="button" class="vehicle-page-tab" onclick="showVehiclePageTab('deadlines')">
+    Deadline besiktningar
+  </button>
+
+  <button type="button" class="vehicle-page-tab" onclick="showVehiclePageTab('booked')">
+    Bokade kontroller
+  </button>
+
+  <button type="button" class="vehicle-page-tab" onclick="showVehiclePageTab('history')">
+    Historik
+  </button>
+</div>
+<div id="vehiclePageInfoTab" class="vehicle-page-tab-content">
+
+  <div class="vehicle-page-section-header">
+  <div>
+    <h3>Grundinfo</h3>
+    <p class="hint">Fordonsuppgifter och åtgärder.</p>
+  </div>
+
+  <div class="vehicle-page-actions">
+    <button type="button" onclick="openVehicleEditFromPage()">
+      Redigera fordon
+    </button>
+
+<button
+  type="button"
+  class="delete-small-btn"
+  onclick="deleteSelectedVehicleFromPage()"
+>
+  Ta bort fordon
+</button>
+  </div>
+</div>
+
+  <div class="vehicle-page-profile-grid">
+    <div>
+      <span>Regnummer</span>
+      <strong id="vehiclePageInfoRegNumber">-</strong>
+    </div>
+
+    <div>
+  <span>Status</span>
+  <strong id="vehiclePageActiveStatus">-</strong>
+</div>
+
+    <div>
+      <span>Kategori</span>
+      <strong id="vehiclePageCategory">-</strong>
+    </div>
+
+    <div>
+      <span>Telefon</span>
+      <strong id="vehiclePagePhone">-</strong>
+    </div>
+
+    <div>
+      <span>Info</span>
+      <strong id="vehiclePageInfoBox">-</strong>
+    </div>
+  </div>
+
+<div class="vehicle-recurring-box">
+  <h3>Återkommande deadlines</h3>
+
+  <p class="hint">
+    Välj hur ofta systemet ska skapa nästa deadline när en kontroll markeras som utförd.
+  </p>
+
+  <div class="vehicle-recurring-grid">
+
+    <div>
+      <label>Taxameter</label>
+      <select id="recurringTaxameter">
+        <option value="">Ingen automatisk deadline</option>
+        <option value="1m">1 månad</option>
+        <option value="1y">1 år</option>
+        <option value="2y">2 år</option>
+        <option value="3y">3 år</option>
+        <option value="5y">5 år</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Alkolås</label>
+      <select id="recurringAlkolas">
+        <option value="">Ingen automatisk deadline</option>
+        <option value="1m">1 månad</option>
+        <option value="1y">1 år</option>
+        <option value="2y">2 år</option>
+        <option value="3y">3 år</option>
+        <option value="5y">5 år</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Färdskrivare</label>
+      <select id="recurringFardskrivare">
+        <option value="">Ingen automatisk deadline</option>
+        <option value="1m">1 månad</option>
+        <option value="1y">1 år</option>
+        <option value="2y">2 år</option>
+        <option value="3y">3 år</option>
+        <option value="5y">5 år</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Lyftbesiktning</label>
+      <select id="recurringLyft">
+        <option value="">Ingen automatisk deadline</option>
+        <option value="1m">1 månad</option>
+        <option value="1y">1 år</option>
+        <option value="2y">2 år</option>
+        <option value="3y">3 år</option>
+        <option value="5y">5 år</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Service</label>
+      <select id="recurringService">
+        <option value="">Ingen automatisk deadline</option>
+        <option value="1m">1 månad</option>
+        <option value="1y">1 år</option>
+        <option value="2y">2 år</option>
+        <option value="3y">3 år</option>
+        <option value="5y">5 år</option>
+      </select>
+    </div>
+
+  </div>
+
+  <button type="button" onclick="saveVehicleRecurringSettings()">
+    Spara återkommande deadlines
+  </button>
+</div>
+
+  <div id="vehiclePageEditBox" style="display:none; margin-top:15px;">
+
+    <div class="vehicle-form-grid">
+      <div>
+        <label>Regnummer</label>
+        <input id="vehiclePageEditReg">
+      </div>
+
+      <div>
+  <label>Status</label>
+  <select id="vehiclePageEditActive">
+    <option value="active">Aktiv</option>
+    <option value="inactive">Inaktiv</option>
+  </select>
+</div>
+
+      <div>
+        <label>Kategori</label>
+        <input id="vehiclePageEditCategory">
+      </div>
+
+      <div>
+        <label>Telefon</label>
+        <input id="vehiclePageEditPhone">
+      </div>
+
+      <div>
+        <label>Info</label>
+        <input id="vehiclePageEditInfo">
+      </div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <button type="button" onclick="saveVehicleFromPage()">Spara</button>
+      <button type="button" onclick="toggleVehicleEditBox(false)">Avbryt</button>
+    </div>
+
+  </div>
+
+</div>
+
+      <div id="vehiclePageDeadlinesTab" class="vehicle-page-tab-content">
+<div class="vehicle-page-section-header">
+  <div>
+    <h3>Deadline besiktningar</h3>
+    <p class="hint">Här visas sista datum kontrollen måste vara utförd.</p>
+  </div>
+
+  <button type="button" onclick="openAddDeadlineForm()">
+    + Lägg till kontroll
+  </button>
+</div>
+
+<div id="addDeadlineFormBox" style="display:none;"></div>
+
+        <div id="vehicleDeadlineCards" class="vehicle-deadline-card-grid"></div>
+      </div>
+
+<div id="vehiclePageBookedTab" class="vehicle-page-tab-content" style="display:none;">
+  <div class="vehicle-page-section-header">
+    <div>
+      <h3>Kontroller</h3>
+      <p class="hint">Filtrera kontroller på status, typ och datumspann.</p>
+    </div>
+  </div>
+
+  <div class="vehicle-booked-filter-box">
+
+    <div class="vehicle-booked-date-row">
+      <div>
+        <label>Från</label>
+        <input type="date" id="vehicleBookedFrom">
+      </div>
+
+      <div>
+        <label>Till</label>
+        <input type="date" id="vehicleBookedTo">
+      </div>
+
+      <button type="button" onclick="renderCurrentVehicleBookedList()">
+        Visa
+      </button>
+    </div>
+
+    <div class="vehicle-booked-filter-row">
+      <button type="button" id="vehicleBookedFilterAll" class="vehicle-booked-filter-btn active" onclick="setVehicleBookedFilter('all')">
+        Alla
+      </button>
+
+      <button type="button" id="vehicleBookedFilterPlanned" class="vehicle-booked-filter-btn" onclick="setVehicleBookedFilter('planned')">
+        Ej bokad
+      </button>
+
+      <button type="button" id="vehicleBookedFilterNotDone" class="vehicle-booked-filter-btn" onclick="setVehicleBookedFilter('notDone')">
+        Deadline
+      </button>
+
+      <button type="button" id="vehicleBookedFilterBooked" class="vehicle-booked-filter-btn" onclick="setVehicleBookedFilter('booked')">
+        Bokade
+      </button>
+
+      <button type="button" id="vehicleBookedFilterDone" class="vehicle-booked-filter-btn" onclick="setVehicleBookedFilter('done')">
+        Utförda
+      </button>
+
+      <button type="button" id="vehicleBookedFilterCancelled" class="vehicle-booked-filter-btn" onclick="setVehicleBookedFilter('cancelled')">
+        Avbokade
+      </button>
+
+      <select id="vehicleBookedTypeFilter" class="vehicle-booked-type-filter" onchange="setVehicleBookedTypeFilter(this.value)">
+        <option value="all">Visa alla typer</option>
+        <option value="färdskriv">Färdskrivare</option>
+        <option value="taxameter">Taxameter</option>
+        <option value="alkolås">Alkolås</option>
+        <option value="lyft">Lyftbesiktning</option>
+        <option value="service">Service</option>
+        <option value="övrigt">Övrigt</option>
+      </select>
+    </div>
+
+  </div>
+
+  <div id="vehicleBookedList"></div>
+</div>
+
+      <div id="vehiclePageHistoryTab" class="vehicle-page-tab-content" style="display:none;">
+        <h3>Historik</h3>
+        <div id="vehicleHistoryList"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+
+<script src="utils.js"></script>
+<script src="fordon.js"></script>
+
+</body>
+</html>

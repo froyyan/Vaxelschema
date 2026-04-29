@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin - Dagvy</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f6f7fb;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav { margin: 15px 0; }
+
+    .nav-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 8px 12px;
+      background: #2d6cdf;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .add-btn { background: #28a745; }
+    .delete-btn { background: #d9534f; }
+
+    input, select {
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    .small-btn {
+      padding: 6px 8px;
+      font-size: 12px;
+      margin-top: 4px;
+      background: #666;
+    }
+
+    .shift-custom-box {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: center;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      margin-top: 15px;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: center;
+    }
+
+    th {
+      background: #2d6cdf;
+      color: white;
+    }
+
+    tr:nth-child(even) {
+      background: #f7f9ff;
+    }
+
+    #weekdayLabel {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .status-red {
+      background: #ffe5e5;
+      border: 2px solid #e74c3c;
+    }
+
+    .status-yellow {
+      background: #fff6cc;
+      border: 2px solid #f1c40f;
+    }
+
+    #suggestModal {
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.5);
+      justify-content:center;
+      align-items:center;
+    }
+
+    #suggestBox {
+      background:white;
+      padding:20px;
+      border-radius:10px;
+      width:400px;
+    }
+
+    .suggest-item {
+      border-bottom:1px solid #eee;
+      padding:10px;
+      text-align:left;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="topbar">
+  <h2>Admin - Dagvy</h2>
+  <button onclick="logout()">Logga ut</button>
+</div>
+
+<div class="nav">
+  <div id="weekdayLabel"></div>
+
+  <div class="nav-row">
+    <button onclick="changeDay(-1)">⬅</button>
+    <input type="date" id="datePicker" onchange="goToDate()">
+    <button onclick="changeDay(1)">➡</button>
+    <button class="add-btn" onclick="addShift()">+ Lägg till pass</button>
+
+    <button onclick="toggleUnassigned()">Visa otilldelade</button>
+    <button onclick="autoAssign()">Auto-fyll förare</button>
+
+    <button onclick="goBack()">Tillbaka</button>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Pass</th>
+      <th>Fordon</th>
+      <th>Tid</th>
+      <th>Rast</th>
+      <th>Förare</th>
+      <th>Telefon</th>
+      <th>Status</th>
+      <th>Ersättare</th>
+      <th>Ta bort</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+</table>
+
+<div id="suggestModal">
+  <div id="suggestBox">
+    <h3>Föreslagna ersättare</h3>
+    <div id="suggestList"></div>
+    <button onclick="closeSuggest()">Stäng</button>
+  </div>
+</div>
+
+<script>
+
+let currentDate = getDateFromUrl() || new Date();
+let drivers = [];
+let currentShiftId = null;
+
+let showOnlyUnassigned = false;
+
+const vehicles = ["Lastbil 1","Lastbil 2","Lastbil 3"];
+
+const statuses = [
+  "Närvarande",
+  "Sjuk",
+  "Semester",
+  "Vård av barn",
+  "Föräldraledig",
+  "Övrigt"
+];
+
+function getDateFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const dateParam = params.get("date");
+
+  if (!dateParam) return null;
+
+  const [year, month, day] = dateParam.split("-").map(Number);
+
+  return new Date(year, month - 1, day);
+}
+
+function getTemplates() {
+  return JSON.parse(localStorage.getItem("shiftTemplates") || "[]");
+}
+
+async function loadDrivers(){
+  const res = await fetch('/users');
+  const users = await res.json();
+  drivers = users
+  .filter(u => u.role === "driver")
+  .sort((a, b) => 
+    a.username.localeCompare(b.username, "sv")
+  );
+}
+
+function formatDate(d) {
+  if (!(d instanceof Date) || isNaN(d.getTime())) {
+    return "";
+  }
+
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function updateHeader(){
+  document.getElementById("weekdayLabel").innerText =
+    currentDate.toLocaleDateString('sv-SE',{weekday:'long'});
+
+  document.getElementById("datePicker").value = formatDate(currentDate);
+}
+
+function parseTimeRange(timeText) {
+  if (!timeText) return null;
+
+  const clean = timeText.replace(/\s/g, "");
+  const parts = clean.split(/-|–|—/);
+
+  if (parts.length !== 2) return null;
+
+  const start = timeToMinutes(parts[0]);
+  const end = timeToMinutes(parts[1]);
+
+  if (start === null || end === null) return null;
+  if (end <= start) return null;
+
+  return { start, end };
+}
+
+function timeToMinutes(time) {
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (hours < 0 || hours > 23) return null;
+  if (minutes < 0 || minutes > 59) return null;
+
+  return hours * 60 + minutes;
+}
+
+function rangesOverlap(a, b) {
+  return a.start < b.end && b.start < a.end;
+}
+
+async function hasScheduleConflict(updatedShift) {
+  if (!updatedShift.driver) return null;
+
+  const range = parseTimeRange(updatedShift.time);
+  if (!range) return null;
+
+  const res = await fetch('/shifts');
+  const shifts = await res.json();
+
+  return shifts.find(s => {
+    if (!s || s.id === updatedShift.id) return false;
+    if (s.date !== updatedShift.date) return false;
+    if ((s.driver || "").toLowerCase() !== updatedShift.driver.toLowerCase()) return false;
+
+    const otherRange = parseTimeRange(s.time);
+    if (!otherRange) return false;
+
+    return rangesOverlap(range, otherRange);
+  }) || null;
+}
+
+function renderShiftCell(s) {
+  const templates = getTemplates();
+  const shiftName = s.shift || s.name || s.title || s.templateName || "";
+
+  const templateExists = templates.some(t => t.name === shiftName);
+
+  if (shiftName && !templateExists) {
+    return `
+      <div class="shift-custom-box">
+        <input value="${shiftName}" onchange="updateShift('${s.id}','shift',this.value)">
+        <button class="small-btn" onclick="setShiftToSelect('${s.id}')">Välj mall</button>
+      </div>
+    `;
+  }
+
+  return `
+    <select onchange="handleShiftTemplateSelect('${s.id}', this.value)">
+      <option value="" ${!shiftName ? "selected" : ""}>-- Välj pass --</option>
+      ${templates.map(t => `<option value="${t.name}" ${t.name === shiftName ? "selected" : ""}>${t.name}</option>`).join("")}
+      <option value="__custom__">Eget pass / textruta</option>
+    </select>
+  `;
+}
+
+async function handleShiftTemplateSelect(id, value) {
+  if (value === "__custom__") {
+    await updateShift(id, "shift", "__custom__");
+    return;
+  }
+
+  const templates = getTemplates();
+  const template = templates.find(t => t.name === value);
+
+  if (!template) {
+    await updateShift(id, "shift", value);
+    return;
+  }
+
+  await updateShiftFields(id, {
+    shift: template.name,
+    vehicle: template.vehicle || "",
+    city: template.city || ""
+  });
+}
+
+async function setShiftToSelect(id) {
+  await updateShift(id, "shift", "");
+}
+
+async function loadDay(){
+
+  await loadDrivers();
+
+  const res = await fetch('/shifts');
+  const data = await res.json();
+
+  let filtered = data.filter(s => s.date === formatDate(currentDate));
+
+  if (showOnlyUnassigned) {
+    filtered = filtered.filter(s => !s.driver);
+  }
+
+  const body = document.getElementById("tableBody");
+  body.innerHTML = "";
+
+  filtered.forEach(s => {
+
+    const driver = drivers.find(d => d.username === s.driver);
+    const status = s.status || "Närvarande";
+
+    let statusClass = "";
+
+    if (["Sjuk","Vård av barn","Föräldraledig","Övrigt"].includes(status)){
+      statusClass = "status-red";
+    }
+
+    if (status === "Semester"){
+      statusClass = "status-yellow";
+    }
+
+    const showSub = status !== "Närvarande";
+
+    const row = document.createElement("tr");
+
+    const shiftCell = s.shift === "__custom__"
+      ? `
+        <div class="shift-custom-box">
+          <input value="" placeholder="Skriv eget pass" onchange="updateShift('${s.id}','shift',this.value)">
+          <button class="small-btn" onclick="setShiftToSelect('${s.id}')">Välj mall</button>
+        </div>
+      `
+      : renderShiftCell(s);
+
+    row.innerHTML = `
+      <td>${shiftCell}</td>
+
+      <td>
+        <select onchange="updateShift('${s.id}','vehicle',this.value)">
+          ${vehicles.map(v => `<option ${v===s.vehicle?'selected':''}>${v}</option>`).join("")}
+        </select>
+      </td>
+
+<td>
+  <input value="${s.time || ''}" onchange="updateShift('${s.id}','time',this.value)">
+</td>
+
+<td>
+  <input 
+    type="number"
+    min="0"
+    step="5"
+    value="${s.breakMinutes || 0}"
+    style="width:70px;"
+    onchange="updateShift('${s.id}','breakMinutes',Number(this.value || 0))"
+  > min
+</td>
+
+<td>
+  <select onchange="updateShift('${s.id}','driver',this.value)">
+          <option value="" ${!s.driver ? "selected" : ""}>OTILLDELAD</option>
+          ${drivers.map(d => `<option ${d.username===s.driver?'selected':''}>${d.username}</option>`).join("")}
+        </select>
+      </td>
+
+      <td>${driver?.phone ? `<a href="tel:${driver.phone}">${driver.phone}</a>` : "-"}</td>
+
+      <td>
+        <select class="${statusClass}" onchange="updateShift('${s.id}','status',this.value)">
+          ${statuses.map(st => `<option ${st===status?'selected':''}>${st}</option>`).join("")}
+        </select>
+      </td>
+
+      <td>
+        ${showSub ? `
+          <select onchange="handleSubSelect('${s.id}',this.value)">
+            <option value="">--</option>
+            <option value="__suggest__">Föreslå</option>
+            ${drivers.map(d => `<option ${d.username===s.substitute?'selected':''}>${d.username}</option>`).join("")}
+          </select>
+        ` : "-"}
+      </td>
+
+      <td><button class="delete-btn" onclick="deleteShift('${s.id}')">X</button></td>
+    `;
+
+    body.appendChild(row);
+  });
+}
+
+function toggleUnassigned(){
+  showOnlyUnassigned = !showOnlyUnassigned;
+  loadDay();
+}
+
+async function autoAssign(){
+
+  await loadDrivers();
+
+  const res = await fetch('/shifts');
+  const shifts = await res.json();
+
+  const today = formatDate(currentDate);
+
+  const unassigned = shifts.filter(s =>
+    s.date === today && !s.driver
+  );
+
+  for (const shift of unassigned){
+
+    const day = new Date(today).getDay();
+
+    const possibleDrivers = drivers.filter(d => {
+      if (!d.rules?.workDays || d.rules.workDays.length === 0) return true;
+      return d.rules.workDays.includes(day);
+    });
+
+    for (const driver of possibleDrivers) {
+      const testShift = { ...shift, driver: driver.username };
+
+      const conflict = await hasScheduleConflict(testShift);
+
+      if (!conflict) {
+        await updateShift(shift.id, "driver", driver.username, true);
+        break;
+      }
+    }
+  }
+
+  loadDay();
+}
+
+async function addShift(){
+  await fetch('/shifts',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+  date: formatDate(currentDate),
+  driver: "",
+  vehicle: vehicles[0],
+  time: "",
+  breakMinutes: 0,
+  status: "Närvarande"
+})
+  });
+
+  loadDay();
+}
+
+async function updateShift(id, field, value, skipReload=false){
+  const res = await fetch('/shifts');
+  const shifts = await res.json();
+
+  const currentShift = shifts.find(s => s.id === id);
+
+  if (!currentShift) return;
+
+  const updatedShift = {
+    ...currentShift,
+    [field]: value
+  };
+
+  if (field === "driver" || field === "time") {
+    const conflict = await hasScheduleConflict(updatedShift);
+
+    if (conflict) {
+      const approved = confirm(
+        `Schemakrock!\n\n` +
+        `${updatedShift.driver || "Förare"} har redan ett pass samma dag:\n` +
+        `${conflict.time || "Tid saknas"}\n\n` +
+        `Det nya passet är:\n` +
+        `${updatedShift.time || "Tid saknas"}\n\n` +
+        `Vill du godkänna körningen ändå?`
+      );
+
+      if (!approved) {
+        loadDay();
+        return;
+      }
+    }
+  }
+
+  await fetch(`/shifts/${id}`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({[field]:value})
+  });
+
+  if (!skipReload) loadDay();
+}
+
+// 👇 LÄGG NY FUNKTION HÄR
+async function updateShiftFields(id, fields, skipReload = false) {
+  await fetch(`/shifts/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields)
+  });
+
+  if (!skipReload) loadDay();
+}
+
+async function deleteShift(id){
+  if (!confirm("Ta bort pass?")) return;
+
+  await fetch(`/shifts/${id}`,{method:'DELETE'});
+  loadDay();
+}
+
+function handleSubSelect(id,value){
+  if (value==="__suggest__") return openSuggest(id);
+  updateShift(id,"substitute",value);
+}
+
+function openSuggest(id){
+  currentShiftId = id;
+
+  const list = document.getElementById("suggestList");
+  list.innerHTML = "";
+
+  drivers.forEach(d=>{
+    const div = document.createElement("div");
+    div.className = "suggest-item";
+
+    div.innerHTML = `
+      <b>${d.username}</b><br>
+      📞 ${d.phone || "-"}<br>
+      🕒 ${d.worktime || "-"}<br>
+      📍 ${d.city || "-"}<br>
+      <button onclick="selectSuggest('${d.username}')">Välj</button>
+    `;
+
+    list.appendChild(div);
+  });
+
+  document.getElementById("suggestModal").style.display = "flex";
+}
+
+function selectSuggest(name){
+  updateShift(currentShiftId,"substitute",name);
+  closeSuggest();
+}
+
+function closeSuggest(){
+  document.getElementById("suggestModal").style.display="none";
+}
+
+function changeDay(o){
+  currentDate.setDate(currentDate.getDate()+o);
+  updateHeader();
+  loadDay();
+}
+
+function goToDate(){
+  const value = document.getElementById("datePicker").value;
+  const [year, month, day] = value.split("-").map(Number);
+
+  currentDate = new Date(year, month - 1, day);
+
+  updateHeader();
+  loadDay();
+}
+
+function goBack(){
+  location.href="/admin.html";
+}
+
+async function logout(){
+  await fetch('/logout',{method:'POST'});
+  location.href="/login.html";
+}
+
+window.onload = ()=>{
+  updateHeader();
+  loadDay();
+};
+
+</script>
+
+</body>
+</html>

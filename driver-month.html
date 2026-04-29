@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Förarschema</title>
+
+  <style>
+  body {
+    font-family: Arial;
+    background: #f6f7fb;
+    padding: 20px;
+  }
+
+  .card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 1000px;
+    margin: auto;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  h2 { margin-top: 0; }
+
+  .summary {
+    background: #f1f5ff;
+    padding: 12px;
+    border-radius: 8px;
+    min-width: 240px;
+    font-size: 14px;
+  }
+
+  .summary div { margin: 4px 0; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    table-layout: auto;
+  }
+
+  th, td {
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    text-align: center;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  th {
+    background: #2d6cdf;
+    color: white;
+  }
+
+  .weekend { background: #ffe5e5; }
+
+  .absence-day {
+    background: #fff6cc;
+  }
+
+  .absence-label {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 12px;
+  }
+
+  .absence-sjuk { background: #ffe5e5; color: #c0392b; }
+  .absence-vab { background: #fff0cc; color: #b36b00; }
+  .absence-semester { background: #dff5ff; color: #247a9c; }
+  .absence-foraldraledig { background: #eee5ff; color: #6f42c1; }
+  .absence-ovrigt { background: #eeeeee; color: #444; }
+
+  .error {
+    color: red;
+    margin-top: 10px;
+  }
+
+  .back-btn {
+    width: auto;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    background: #444;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .back-btn:hover { background: #222; }
+
+  .header-right {
+    text-align: right;
+    font-size: 14px;
+  }
+
+  .overtime {
+    font-weight: bold;
+    color: #2d6cdf;
+  }
+  </style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <button class="back-btn" onclick="goBack()">⬅ Tillbaka</button>
+
+  <div class="topbar">
+    <div>
+      <h2 id="title">Laddar...</h2>
+      <p id="phone"></p>
+    </div>
+
+    <div class="header-right">
+      <div>
+        📅 <a href="#" onclick="openMonth()">Månad</a>
+      </div>
+      <div><b>Total arbetstid:</b> <span id="workTime">0h</span></div>
+      <div><b>Rast:</b> <span id="breakTime">0h</span></div>
+      <div><b>Frånvaro:</b> <span id="absenceTime">0h</span></div>
+      <hr>
+      <div><b>Resultat:</b> <span id="resultTime">0h</span></div>
+      <div class="overtime" id="overtimeBox"></div>
+    </div>
+  </div>
+
+  <div id="error" class="error"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Vecka</th>
+        <th>Dag</th>
+        <th>Datum</th>
+        <th>Pass</th>
+        <th>Fordon</th>
+        <th>Tid</th>
+        <th>Tidsanteckning</th>
+        <th>Rast</th>
+        <th>Frånvaro</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
+</div>
+
+<script>
+
+const MONTH_TARGET = 160;
+
+function goBack() {
+  window.location.href = "/admin.html";
+}
+
+function openMonth() {
+  const params = new URLSearchParams(window.location.search);
+  const driver = params.get("driver");
+  const month = params.get("month");
+  window.location.href = `/driver-month.html?driver=${driver}&month=${month}`;
+}
+
+function getWeekNumber(d) {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+}
+
+const days = ["Söndag","Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag"];
+
+function parseHours(range) {
+  if (!range || !range.includes("-")) return 0;
+
+  const [start, end] = range.split("-");
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+
+  return (eh + em/60) - (sh + sm/60);
+}
+
+function formatHours(h) {
+  return `${h.toFixed(1)}h`;
+}
+function formatBreakMinutes(minutes) {
+  const value = Number(minutes || 0);
+  return value > 0 ? `${value} min` : "";
+}
+
+function getAbsenceForDate(absences, dateStr) {
+  return absences.find(a => {
+    return dateStr >= a.from && dateStr <= a.to;
+  }) || null;
+}
+
+function getAbsenceClass(type) {
+  if (type === "Sjuk") return "absence-sjuk";
+  if (type === "Vård av barn") return "absence-vab";
+  if (type === "Semester") return "absence-semester";
+  if (type === "Föräldraledig") return "absence-foraldraledig";
+  return "absence-ovrigt";
+}
+
+function renderAbsence(absence) {
+  if (!absence) return "";
+
+  const cls = getAbsenceClass(absence.type);
+
+  return `
+    <span class="absence-label ${cls}">
+      ${absence.type || "Avvikelse"}
+      ${absence.note ? " – " + absence.note : ""}
+    </span>
+  `;
+}
+async function updateShiftBreak(shiftId, breakMinutes) {
+  const value = Number(breakMinutes || 0);
+
+  const res = await fetch(`/shifts/${shiftId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      breakMinutes: value
+    })
+  });
+
+  if (res.status === 401) {
+    window.location.href = "/login.html";
+    return;
+  }
+
+  if (!res.ok) {
+    alert("Kunde inte spara rast.");
+    return;
+  }
+
+  init();
+}
+async function init() {
+
+  const params = new URLSearchParams(window.location.search);
+  const driver = params.get("driver");
+  const month = params.get("month");
+
+  const userRes = await fetch('/users/' + driver, { credentials: 'include' });
+
+  if (userRes.status === 401) {
+    window.location.href = "/login.html";
+    return;
+  }
+
+  const user = await userRes.json();
+  const absences = user.rules?.absences || [];
+
+  const dateObj = new Date(month + "-01");
+
+  document.getElementById("title").innerText =
+    `Förarschema för ${user.username}, ${dateObj.toLocaleDateString('sv-SE',{month:'long',year:'numeric'})}`;
+
+  document.getElementById("phone").innerText =
+    `Mobilnummer: ${user.phone || "-"}`;
+
+  const res = await fetch('/shifts', { credentials: 'include' });
+
+  if (res.status === 401) {
+    window.location.href = "/login.html";
+    return;
+  }
+
+  const shifts = await res.json();
+
+  const body = document.getElementById("tableBody");
+  body.innerHTML = "";
+
+  let workTotal = 0;
+  let absenceTotal = 0;
+  let breakTotal = 0;
+
+  const year = dateObj.getFullYear();
+  const monthIndex = dateObj.getMonth();
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+  for (let i = 1; i <= daysInMonth; i++) {
+
+    const d = new Date(year, monthIndex, i);
+
+    const dateStr =
+      d.getFullYear() + "-" +
+      String(d.getMonth()+1).padStart(2,'0') + "-" +
+      String(d.getDate()).padStart(2,'0');
+
+    const dayAbsence = getAbsenceForDate(absences, dateStr);
+
+    const dayShifts = shifts.filter(s => {
+      const isDriver = (s.driver || "").toLowerCase() === driver.toLowerCase();
+      const isSub = (s.substitute || "").toLowerCase() === driver.toLowerCase();
+      return (isDriver || isSub) && s.date === dateStr;
+    });
+
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+
+    dayShifts.forEach(s => {
+      const hours = parseHours(s.time);
+
+      workTotal += hours;
+
+      breakTotal += Number(s.breakMinutes || 0) / 60;
+
+      if (s.status && s.status !== "Närvarande") {
+        absenceTotal += hours;
+      }
+    });
+
+    const row = document.createElement("tr");
+    if (isWeekend) row.classList.add("weekend");
+    if (dayAbsence) row.classList.add("absence-day");
+
+    row.innerHTML = `
+      <td>${getWeekNumber(d)}</td>
+      <td>${days[d.getDay()]}</td>
+      <td>${dateStr}</td>
+
+      <td>${dayShifts.length ? dayShifts.map(s => `<div>${s.shift || ""}</div>`).join("") : "Ledig"}</td>
+
+      <td>${dayShifts.map(s => `<div>${s.vehicle || ""}</div>`).join("")}</td>
+      <td>${dayShifts.map(s => `<div>${s.time || ""}</div>`).join("")}</td>
+      <td>${dayAbsence ? renderAbsence(dayAbsence) : ""}</td>
+      <td>
+  ${dayShifts.map(s => `
+    <div>
+      <input
+        type="number"
+        min="0"
+        step="5"
+        value="${s.breakMinutes || 0}"
+        style="width:70px;"
+        onchange="updateShiftBreak('${s.id}', this.value)"
+      > min
+    </div>
+  `).join("")}
+</td>
+      <td>
+        ${dayAbsence ? renderAbsence(dayAbsence) : dayShifts.map(s => `<div>${s.status || ""}</div>`).join("")}
+      </td>
+    `;
+
+    body.appendChild(row);
+  }
+
+  const result = workTotal - breakTotal - absenceTotal;
+  const diff = result - MONTH_TARGET;
+
+  document.getElementById("workTime").innerText = formatHours(workTotal);
+  document.getElementById("breakTime").innerText = formatHours(breakTotal);
+  document.getElementById("absenceTime").innerText = formatHours(absenceTotal);
+  document.getElementById("resultTime").innerText = formatHours(result);
+
+  if (diff > 0) {
+    document.getElementById("overtimeBox").innerText = `Övertid: +${formatHours(diff)}`;
+  } else if (diff < 0) {
+    document.getElementById("overtimeBox").innerText = `Underskott: ${formatHours(diff)}`;
+  } else {
+    document.getElementById("overtimeBox").innerText = `Exakt enligt plan`;
+  }
+}
+
+init();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Växelschema</title>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f6f7fb;
+    padding: 20px;
+  }
+
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  h1 { margin: 0; }
+
+  .today-box {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+
+  .today-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+
+  .today-line {
+    margin: 3px 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  th {
+    background: #2d6cdf;
+    color: white;
+    text-align: left;
+    padding: 10px;
+  }
+
+  td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+  }
+
+  tr:hover {
+    background: #f1f5ff;
+  }
+
+  .month-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+
+  button {
+    padding: 8px 12px;
+    background: #2d6cdf;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #1f4fbf;
+  }
+
+  .has-shift {
+    background: #eef4ff;
+  }
+
+  .absence-day {
+    background: #fff6cc;
+  }
+
+  .warning-day {
+    background: #ffe5e5;
+  }
+
+  .status {
+    font-size: 12px;
+    opacity: 0.8;
+    display: block;
+  }
+
+  .status-sick { color: #d9534f; font-weight: bold; }
+  .status-vab { color: #f0ad4e; font-weight: bold; }
+  .status-vacation { color: #5bc0de; font-weight: bold; }
+  .status-parental { color: #6f42c1; font-weight: bold; }
+  .status-other { color: #555; font-weight: bold; }
+
+  .absence-label {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .absence-sjuk { background: #ffe5e5; color: #c0392b; }
+  .absence-vab { background: #fff0cc; color: #b36b00; }
+  .absence-semester { background: #dff5ff; color: #247a9c; }
+  .absence-foraldraledig { background: #eee5ff; color: #6f42c1; }
+  .absence-ovrigt { background: #eeeeee; color: #444; }
+
+  .warning-text {
+    color: #d9534f;
+    font-weight: bold;
+    font-size: 12px;
+    display: block;
+    margin-top: 4px;
+  }
+</style>
+
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Chaufförsvy</h1>
+  <button onclick="logout()">Logga ut</button>
+</div>
+
+<div class="today-box" id="todayBox">
+  Laddar dagens schema...
+</div>
+
+<div class="month-header">
+  <button onclick="prevMonth()">⬅</button>
+  <h2 id="monthTitle">Månad</h2>
+  <button onclick="nextMonth()">➡</button>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Vecka</th>
+      <th>Dag</th>
+      <th>Datum</th>
+      <th>Pass</th>
+      <th>Fordon</th>
+      <th>Tid</th>
+      <th>Rast</th>
+      <th>Frånvaro</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+</table>
+
+<script>
+
+let currentMonth;
+let currentYear;
+let currentDriver = "erik";
+let currentUser = null;
+
+const monthNames = [
+  "Januari","Februari","Mars","April","Maj","Juni",
+  "Juli","Augusti","September","Oktober","November","December"
+];
+
+function formatDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+function formatBreakMinutes(minutes) {
+  const value = Number(minutes || 0);
+  return value > 0 ? `${value} min` : "";
+}
+
+async function logout() {
+  await fetch('/logout', { method: 'POST' });
+  window.location.href = '/login.html';
+}
+
+async function loadMe() {
+  const res = await fetch('/me', { credentials: 'include' });
+
+  if (res.status === 401) {
+    window.location.href = "/login.html";
+    return null;
+  }
+
+  const me = await res.json();
+
+  if (me && me.username) {
+    currentDriver = me.username;
+  }
+
+  return me;
+}
+
+async function loadCurrentUser() {
+  const res = await fetch('/users/' + currentDriver, { credentials: 'include' });
+
+  if (res.status === 401) {
+    window.location.href = "/login.html";
+    return null;
+  }
+
+  currentUser = await res.json();
+  return currentUser;
+}
+
+async function loadShiftsMap() {
+  const res = await fetch('/shifts', { credentials: 'include' });
+
+  if (res.status === 401) {
+    window.location.href = "/login.html";
+    return {};
+  }
+
+  const all = await res.json();
+
+  const map = {};
+  all.forEach(s => {
+    if (!map[s.date]) map[s.date] = [];
+    map[s.date].push(s);
+  });
+
+  return map;
+}
+
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function getAbsenceForDate(dateStr) {
+  const absences = currentUser?.rules?.absences || [];
+
+  return absences.find(a => {
+    return dateStr >= a.from && dateStr <= a.to;
+  }) || null;
+}
+
+function getAbsenceClass(type) {
+  if (type === "Sjuk") return "absence-sjuk";
+  if (type === "Vård av barn") return "absence-vab";
+  if (type === "Semester") return "absence-semester";
+  if (type === "Föräldraledig") return "absence-foraldraledig";
+  return "absence-ovrigt";
+}
+
+function renderAbsence(absence) {
+  if (!absence) return "";
+
+  const cls = getAbsenceClass(absence.type);
+
+  return `
+    <span class="absence-label ${cls}">
+      ${absence.type || "Avvikelse"}
+      ${absence.note ? " – " + absence.note : ""}
+    </span>
+  `;
+}
+
+function getStatusLabel(s) {
+  if (!s.status || s.status === "Närvarande") return "";
+
+  let cls = "";
+  if (s.status === "Sjuk") cls = "status-sick";
+  if (s.status === "Vård av barn") cls = "status-vab";
+  if (s.status === "Semester") cls = "status-vacation";
+  if (s.status === "Föräldraledig") cls = "status-parental";
+  if (s.status === "Övrigt") cls = "status-other";
+
+  return `<span class="status ${cls}">${s.status}</span>`;
+}
+
+/* ===== TODAY BOX ===== */
+function renderToday(allShifts) {
+
+  const today = formatDate(new Date());
+  const absence = getAbsenceForDate(today);
+
+  const shifts = allShifts.filter(s =>
+    s.date === today &&
+    (
+      (s.driver || "").toLowerCase() === currentDriver.toLowerCase() ||
+      (s.substitute || "").toLowerCase() === currentDriver.toLowerCase()
+    )
+  );
+
+  const box = document.getElementById("todayBox");
+
+  if (absence && shifts.length === 0) {
+    box.innerHTML = `
+      <div class="today-title">Idag: ${today}</div>
+      <div class="today-line">${renderAbsence(absence)}</div>
+    `;
+    return;
+  }
+
+  if (absence && shifts.length > 0) {
+    const shiftRows = shifts.map(s => `
+      <div class="today-line"><b>Pass:</b> ${s.shift || "-"}</div>
+      <div class="today-line"><b>Fordon:</b> ${s.vehicle || "-"}</div>
+      <div class="today-line"><b>Tid:</b> ${s.time || "-"}</div>
+<div class="today-line"><b>Rast:</b> ${formatBreakMinutes(s.breakMinutes) || "-"}</div>
+    `).join("<hr>");
+
+    box.innerHTML = `
+      <div class="today-title">Idag: ${today}</div>
+      <div class="today-line">${renderAbsence(absence)}</div>
+      <span class="warning-text">⚠ Avvikelse finns men pass är också tilldelat.</span>
+      <hr>
+      ${shiftRows}
+    `;
+    return;
+  }
+
+  if (shifts.length === 0) {
+    box.innerHTML = `
+      <div class="today-title">Idag: ${today}</div>
+      <div class="today-line">Ledig</div>
+    `;
+    return;
+  }
+
+  const shiftRows = shifts.map(s => `
+    <div class="today-line"><b>Pass:</b> ${s.shift || "-"}</div>
+    <div class="today-line"><b>Fordon:</b> ${s.vehicle || "-"}</div>
+    <div class="today-line"><b>Tid:</b> ${s.time || "-"}</div>
+<div class="today-line"><b>Rast:</b> ${formatBreakMinutes(s.breakMinutes) || "-"}</div>
+  `).join("<hr>");
+
+  box.innerHTML = `
+    <div class="today-title">Idag: ${today}</div>
+    ${shiftRows}
+  `;
+}
+
+/* ===== MONTH VIEW ===== */
+async function renderMonth() {
+
+  const shiftMap = await loadShiftsMap();
+  const all = Object.values(shiftMap).flat();
+
+  renderToday(all);
+
+  document.getElementById("monthTitle").innerText =
+    `${monthNames[currentMonth - 1]} ${currentYear}`;
+
+  const body = document.getElementById('tableBody');
+  body.innerHTML = '';
+
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+  let lastWeek = null;
+
+  for (let i = 1; i <= daysInMonth; i++) {
+
+    const dateObj = new Date(currentYear, currentMonth - 1, i);
+    const dateStr = formatDate(dateObj);
+
+    const weekNr = getWeekNumber(dateObj);
+    const weekday = dateObj.toLocaleDateString('sv-SE', { weekday: 'long' });
+
+    const shifts = shiftMap[dateStr] || [];
+    const absence = getAbsenceForDate(dateStr);
+
+    const relevant = shifts.filter(s => {
+      return (
+        (s.driver || "").toLowerCase() === currentDriver.toLowerCase() ||
+        (s.substitute || "").toLowerCase() === currentDriver.toLowerCase()
+      );
+    });
+
+    const isEmpty = relevant.length === 0;
+
+    const row = document.createElement('tr');
+
+    if (!isEmpty) row.classList.add("has-shift");
+    if (absence && isEmpty) row.classList.add("absence-day");
+    if (absence && !isEmpty) row.classList.add("warning-day");
+
+    row.innerHTML = `
+      <td>${weekNr !== lastWeek ? weekNr : ''}</td>
+      <td>${weekday}</td>
+      <td>${dateStr}</td>
+
+      <td>
+        ${isEmpty ? "Ledig" :
+          relevant.map(s => `<div>${s.shift || ''}</div>`).join('')
+        }
+        ${absence && !isEmpty ? `<span class="warning-text">⚠ Avvikelse + pass</span>` : ""}
+      </td>
+
+      <td>${relevant.map(s => `<div>${s.vehicle || ''}</div>`).join('')}</td>
+      <td>${relevant.map(s => `<div>${s.time || ''}</div>`).join('')}</td>
+      <td>${relevant.map(s => `<div>${formatBreakMinutes(s.breakMinutes)}</div>`).join('')}</td>
+
+      <td>
+        ${absence ? renderAbsence(absence) : relevant.map(s => getStatusLabel(s)).join('<br>')}
+      </td>
+    `;
+
+    lastWeek = weekNr;
+    body.appendChild(row);
+  }
+}
+
+/* ===== NAV ===== */
+function prevMonth() {
+  currentMonth--;
+  if (currentMonth < 1) {
+    currentMonth = 12;
+    currentYear--;
+  }
+  renderMonth();
+}
+
+function nextMonth() {
+  currentMonth++;
+  if (currentMonth > 12) {
+    currentMonth = 1;
+    currentYear++;
+  }
+  renderMonth();
+}
+
+/* ===== INIT ===== */
+window.onload = async function () {
+  const now = new Date();
+  currentMonth = now.getMonth() + 1;
+  currentYear = now.getFullYear();
+
+  await loadMe();
+  await loadCurrentUser();
+  renderMonth();
+};
+
+</script>
+
+</body>
+</html>
